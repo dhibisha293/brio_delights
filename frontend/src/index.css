@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --color-lav-50: #fbf7ff;
+  --color-lav-100: #f3e8ff;
+  --color-lav-200: #e4ccff;
+  --color-lav-300: #d4a8ff;
+  --color-lav-400: #c084fc;
+  --color-lav-500: #a855f7;
+  --color-lav-600: #9333ea;
+  --color-lav-700: #7e22ce;
+  --color-lav-800: #6b21a8;
+  --color-lav-900: #4c1d7a;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #3b0764;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #f3e8ff 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #e9d5ff 0%, transparent 50%),
+    linear-gradient(180deg, #faf5ff 0%, #ede9fe 45%, #ddd6fe 100%);
+}
