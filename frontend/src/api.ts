@@ -84,7 +84,8 @@ export type PantryItem = {
 
 export type RecipeIngredient = {
   id?: string;
-  name: string;
+  ingredient_id: string;
+  name?: string;
   quantity: number;
   unit: string;
 };
@@ -92,9 +93,14 @@ export type RecipeIngredient = {
 export type Recipe = {
   id: string;
   name: string;
+  category: string;
+  description: string | null;
   selling_price: number | null;
+  notes: string | null;
   ingredients: RecipeIngredient[];
   estimated_cost: number | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export function listPantry() {
@@ -116,9 +122,16 @@ export function listRecipes() {
   return request<Recipe[]>("/recipes");
 }
 
+export function getRecipe(id: string) {
+  return request<Recipe>(`/recipes/${id}`);
+}
+
 export function addRecipe(body: {
   name: string;
+  category: string;
+  description: string | null;
   selling_price: number | null;
+  notes: string | null;
   ingredients: RecipeIngredient[];
 }) {
   return request<Recipe>("/recipes", {
@@ -127,8 +140,44 @@ export function addRecipe(body: {
   });
 }
 
+export function updateRecipe(id: string, body: {
+  name: string;
+  category: string;
+  description: string | null;
+  selling_price: number | null;
+  notes: string | null;
+  ingredients: RecipeIngredient[];
+}) {
+  return request<Recipe>(`/recipes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 export function deleteRecipe(id: string) {
   return request<{ ok: boolean }>(`/recipes/${id}`, { method: "DELETE" });
+}
+
+export function listRecipeIngredients(recipeId: string) {
+  return request<RecipeIngredient[]>(`/recipes/${recipeId}/ingredients`);
+}
+
+export function addRecipeIngredient(recipeId: string, body: { ingredient_id: string; quantity: number; unit: string }) {
+  return request<RecipeIngredient>(`/recipes/${recipeId}/ingredients`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateRecipeIngredient(recipeId: string, ingredientId: string, body: { ingredient_id: string; quantity: number; unit: string }) {
+  return request<RecipeIngredient>(`/recipes/${recipeId}/ingredients/${ingredientId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteRecipeIngredient(recipeId: string, ingredientId: string) {
+  return request<{ ok: boolean }>(`/recipes/${recipeId}/ingredients/${ingredientId}`, { method: "DELETE" });
 }
 
 // -----------------------------------------------------------------------------

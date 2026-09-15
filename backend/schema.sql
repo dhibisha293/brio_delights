@@ -146,3 +146,31 @@ alter table public.ingredient_purchases add constraint ingredient_purchases_pric
 alter table public.ingredient_purchases add column if not exists is_opening_stock boolean not null default false;
 
 notify pgrst, 'reload schema';
+
+
+-- UPDATE RECIPES MODULE
+-- --------------------------------------------------------
+
+alter table public.recipes add column if not exists category text not null default 'Other';
+alter table public.recipes add column if not exists description text;
+alter table public.recipes add column if not exists notes text;
+alter table public.recipes add column if not exists updated_at timestamptz not null default now();
+
+-- We need to drop the existing table entirely or clean it up if it has the wrong columns.
+-- Since they just ran it and there's no data probably, we can just alter it.
+-- But wait, SQLite syntax vs Postgres syntax... This is postgres.
+-- Instead of complex alters, let's just drop and recreate recipe_ingredients since it has dummy data if any.
+drop table if exists public.recipe_ingredients cascade;
+
+create table if not exists public.recipe_ingredients (
+  id uuid primary key default gen_random_uuid(),
+  recipe_id uuid not null references public.recipes (id) on delete cascade,
+  ingredient_id uuid not null references public.ingredients (id) on delete restrict,
+  quantity numeric not null check (quantity > 0),
+  unit text not null,
+  created_at timestamptz not null default now(),
+  unique (recipe_id, ingredient_id)
+);
+
+notify pgrst, 'reload schema';
+

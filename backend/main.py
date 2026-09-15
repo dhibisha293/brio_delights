@@ -129,27 +129,36 @@ class ConsumeIn(BaseModel):
 
 
 class RecipeIngredientIn(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
+    ingredient_id: str
     quantity: float = Field(gt=0)
     unit: str = Field(min_length=1, max_length=20)
 
 
 class RecipeIngredientOut(RecipeIngredientIn):
     id: str
+    name: str
 
 
 class RecipeIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
+    category: str = Field(min_length=1, max_length=80)
+    description: Optional[str] = None
     selling_price: Optional[float] = Field(default=None, ge=0)
+    notes: Optional[str] = None
     ingredients: List[RecipeIngredientIn] = Field(min_length=1)
 
 
 class RecipeOut(BaseModel):
     id: str
     name: str
+    category: str
+    description: Optional[str] = None
     selling_price: Optional[float] = None
+    notes: Optional[str] = None
     ingredients: List[RecipeIngredientOut]
     estimated_cost: Optional[float] = None
+    created_at: str
+    updated_at: str
 
 
 def _auth_error(message: str, code: int = status.HTTP_400_BAD_REQUEST) -> HTTPException:
@@ -264,11 +273,12 @@ def _unit_costs(sb: Client, user_id: str) -> Dict[str, float]:
     return costs
 
 
-def _recipe_cost(ingredients: list, costs: Dict[str, float]) -> Optional[float]:
+def _recipe_cost(ingredients: list, costs: Dict[str, float], pantry_map: Dict[str, str]) -> Optional[float]:
     total = 0.0
     matched = False
     for item in ingredients:
-        key = f"{item['name'].strip().lower()}|{item['unit'].strip().lower()}"
+        name = pantry_map.get(item["ingredient_id"], item.get("name", ""))
+        key = f"{name.strip().lower()}|{item['unit'].strip().lower()}"
         unit_cost = costs.get(key)
         if unit_cost is None:
             continue
@@ -288,22 +298,28 @@ def _pantry_out(row: dict) -> PantryOut:
     )
 
 
-def _recipe_out(row: dict, costs: Dict[str, float]) -> RecipeOut:
+def _recipe_out(row: dict, costs: Dict[str, float], pantry_map: Dict[str, str]) -> RecipeOut:
     ingredients = row.get("recipe_ingredients") or []
     return RecipeOut(
         id=row["id"],
         name=row["name"],
+        category=row.get("category", "Other"),
+        description=row.get("description"),
         selling_price=None if row.get("selling_price") is None else float(row["selling_price"]),
+        notes=row.get("notes"),
         ingredients=[
             RecipeIngredientOut(
                 id=item["id"],
-                name=item["name"],
+                ingredient_id=item["ingredient_id"],
+                name=pantry_map.get(item["ingredient_id"], item.get("name", "Unknown")),
                 quantity=float(item["quantity"]),
                 unit=item["unit"],
             )
             for item in ingredients
         ],
-        estimated_cost=_recipe_cost(ingredients, costs),
+        estimated_cost=_recipe_cost(ingredients, costs, pantry_map),
+        created_at=row.get("created_at", ""),
+        updated_at=row.get("updated_at", ""),
     )
 
 
@@ -441,16 +457,40 @@ def list_recipes(user_id: str = Depends(_current_user_id)):
     try:
         result = (
             sb.table("recipes")
-            .select("id, name, selling_price, recipe_ingredients(id, name, quantity, unit)")
+            .select("id, name, category, description, selling_price, notes, created_at, updated_at, recipe_ingredients(id, ingredient_id, quantity, unit)")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .execute()
         )
         costs = _unit_costs(sb, user_id)
+        pantry_res = sb.table("pantry_items").select("id, name").eq("user_id", user_id).execute()
+        pantry_map = {row["id"]: row["name"] for row in (pantry_res.data or [])}
     except Exception as exc:
         raise _missing_table_error(exc, "recipes")
-    return [_recipe_out(row, costs) for row in (result.data or [])]
+    return [_recipe_out(row, costs, pantry_map) for row in (result.data or [])]
 
+@app.get("/recipes/{recipe_id}", response_model=RecipeOut)
+def get_recipe(recipe_id: str, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        result = (
+            sb.table("recipes")
+            .select("id, name, category, description, selling_price, notes, created_at, updated_at, recipe_ingredients(id, ingredient_id, quantity, unit)")
+            .eq("id", recipe_id)
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        if not result.data:
+            raise _auth_error("Recipe not found", 404)
+        costs = _unit_costs(sb, user_id)
+        pantry_res = sb.table("pantry_items").select("id, name").eq("user_id", user_id).execute()
+        pantry_map = {row["id"]: row["name"] for row in (pantry_res.data or [])}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipes")
+    return _recipe_out(result.data, costs, pantry_map)
 
 @app.post("/recipes", response_model=RecipeOut)
 def add_recipe(body: RecipeIn, user_id: str = Depends(_current_user_id)):
@@ -462,7 +502,10 @@ def add_recipe(body: RecipeIn, user_id: str = Depends(_current_user_id)):
                 {
                     "user_id": user_id,
                     "name": body.name.strip(),
+                    "category": body.category.strip(),
+                    "description": body.description,
                     "selling_price": body.selling_price,
+                    "notes": body.notes,
                 }
             )
             .execute()
@@ -477,7 +520,7 @@ def add_recipe(body: RecipeIn, user_id: str = Depends(_current_user_id)):
                 [
                     {
                         "recipe_id": recipe_id,
-                        "name": item.name.strip(),
+                        "ingredient_id": item.ingredient_id,
                         "quantity": item.quantity,
                         "unit": item.unit.strip(),
                     }
@@ -486,14 +529,63 @@ def add_recipe(body: RecipeIn, user_id: str = Depends(_current_user_id)):
             )
             .execute()
         )
+        
+        result = (
+            sb.table("recipes")
+            .select("id, name, category, description, selling_price, notes, created_at, updated_at, recipe_ingredients(id, ingredient_id, quantity, unit)")
+            .eq("id", recipe_id)
+            .execute()
+        )
         costs = _unit_costs(sb, user_id)
+        pantry_res = sb.table("pantry_items").select("id, name").eq("user_id", user_id).execute()
+        pantry_map = {row["id"]: row["name"] for row in (pantry_res.data or [])}
     except HTTPException:
         raise
     except Exception as exc:
         raise _missing_table_error(exc, "recipes")
-    recipe_row = dict(rows[0])
-    recipe_row["recipe_ingredients"] = ingredients.data or []
-    return _recipe_out(recipe_row, costs)
+    return _recipe_out(result.data[0], costs, pantry_map)
+
+@app.put("/recipes/{recipe_id}", response_model=RecipeOut)
+def update_recipe(recipe_id: str, body: RecipeIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        updated = sb.table("recipes").update({
+            "name": body.name.strip(),
+            "category": body.category.strip(),
+            "description": body.description,
+            "selling_price": body.selling_price,
+            "notes": body.notes,
+        }).eq("id", recipe_id).eq("user_id", user_id).execute()
+        
+        if not updated.data:
+            raise _auth_error("Could not find recipe.")
+            
+        sb.table("recipe_ingredients").delete().eq("recipe_id", recipe_id).execute()
+        
+        ingredients = sb.table("recipe_ingredients").insert([
+            {
+                "recipe_id": recipe_id,
+                "ingredient_id": item.ingredient_id,
+                "quantity": item.quantity,
+                "unit": item.unit.strip(),
+            }
+            for item in body.ingredients
+        ]).execute()
+        
+        result = (
+            sb.table("recipes")
+            .select("id, name, category, description, selling_price, notes, created_at, updated_at, recipe_ingredients(id, ingredient_id, quantity, unit)")
+            .eq("id", recipe_id)
+            .execute()
+        )
+        costs = _unit_costs(sb, user_id)
+        pantry_res = sb.table("pantry_items").select("id, name").eq("user_id", user_id).execute()
+        pantry_map = {row["id"]: row["name"] for row in (pantry_res.data or [])}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipes")
+    return _recipe_out(result.data[0], costs, pantry_map)
 
 
 @app.delete("/recipes/{recipe_id}")
@@ -506,8 +598,143 @@ def delete_recipe(recipe_id: str, user_id: str = Depends(_current_user_id)):
     return {"ok": True}
 
 
-# -----------------------------------------------------------------------------
-# NEW PANTRY MODULE
+@app.get("/recipes/{recipe_id}/ingredients", response_model=List[RecipeIngredientOut])
+def list_recipe_ingredients(recipe_id: str, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        # First verify the recipe belongs to the user
+        recipe_res = sb.table("recipes").select("id").eq("id", recipe_id).eq("user_id", user_id).maybe_single().execute()
+        if not recipe_res.data:
+            raise _auth_error("Recipe not found.", 404)
+            
+        result = (
+            sb.table("recipe_ingredients")
+            .select("id, ingredient_id, quantity, unit")
+            .eq("recipe_id", recipe_id)
+            .execute()
+        )
+        
+        pantry_res = sb.table("pantry_items").select("id, name").eq("user_id", user_id).execute()
+        pantry_map = {row["id"]: row["name"] for row in (pantry_res.data or [])}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipe_ingredients")
+        
+    return [
+        RecipeIngredientOut(
+            id=item["id"],
+            ingredient_id=item["ingredient_id"],
+            name=pantry_map.get(item["ingredient_id"], "Unknown"),
+            quantity=float(item["quantity"]),
+            unit=item["unit"],
+        )
+        for item in (result.data or [])
+    ]
+
+
+@app.post("/recipes/{recipe_id}/ingredients", response_model=RecipeIngredientOut)
+def add_recipe_ingredient(recipe_id: str, body: RecipeIngredientIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        recipe_res = sb.table("recipes").select("id").eq("id", recipe_id).eq("user_id", user_id).maybe_single().execute()
+        if not recipe_res.data:
+            raise _auth_error("Recipe not found.", 404)
+            
+        inserted = sb.table("recipe_ingredients").insert({
+            "recipe_id": recipe_id,
+            "ingredient_id": body.ingredient_id,
+            "quantity": body.quantity,
+            "unit": body.unit.strip(),
+        }).execute()
+        
+        rows = inserted.data or []
+        if not rows:
+            raise _auth_error("Could not save recipe ingredient.")
+            
+        # Fetch it back with the pantry item name
+        result = (
+            sb.table("recipe_ingredients")
+            .select("id, ingredient_id, quantity, unit")
+            .eq("id", rows[0]["id"])
+            .execute()
+        )
+        item = result.data[0]
+        pantry_res = sb.table("pantry_items").select("id, name").eq("id", item["ingredient_id"]).maybe_single().execute()
+        pantry_name = pantry_res.data["name"] if pantry_res.data else "Unknown"
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipe_ingredients")
+        
+    return RecipeIngredientOut(
+        id=item["id"],
+        ingredient_id=item["ingredient_id"],
+        name=pantry_name,
+        quantity=float(item["quantity"]),
+        unit=item["unit"],
+    )
+
+
+@app.put("/recipes/{recipe_id}/ingredients/{recipe_ingredient_id}", response_model=RecipeIngredientOut)
+def update_recipe_ingredient(recipe_id: str, recipe_ingredient_id: str, body: RecipeIngredientIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        recipe_res = sb.table("recipes").select("id").eq("id", recipe_id).eq("user_id", user_id).maybe_single().execute()
+        if not recipe_res.data:
+            raise _auth_error("Recipe not found.", 404)
+            
+        updated = sb.table("recipe_ingredients").update({
+            "ingredient_id": body.ingredient_id,
+            "quantity": body.quantity,
+            "unit": body.unit.strip(),
+        }).eq("id", recipe_ingredient_id).eq("recipe_id", recipe_id).execute()
+        
+        rows = updated.data or []
+        if not rows:
+            raise _auth_error("Could not find recipe ingredient.")
+            
+        # Fetch it back with the pantry item name
+        result = (
+            sb.table("recipe_ingredients")
+            .select("id, ingredient_id, quantity, unit")
+            .eq("id", recipe_ingredient_id)
+            .execute()
+        )
+        item = result.data[0]
+        pantry_res = sb.table("pantry_items").select("id, name").eq("id", item["ingredient_id"]).maybe_single().execute()
+        pantry_name = pantry_res.data["name"] if pantry_res.data else "Unknown"
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipe_ingredients")
+        
+    return RecipeIngredientOut(
+        id=item["id"],
+        ingredient_id=item["ingredient_id"],
+        name=pantry_name,
+        quantity=float(item["quantity"]),
+        unit=item["unit"],
+    )
+
+
+@app.delete("/recipes/{recipe_id}/ingredients/{recipe_ingredient_id}")
+def delete_recipe_ingredient(recipe_id: str, recipe_ingredient_id: str, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        recipe_res = sb.table("recipes").select("id").eq("id", recipe_id).eq("user_id", user_id).maybe_single().execute()
+        if not recipe_res.data:
+            raise _auth_error("Recipe not found.", 404)
+            
+        sb.table("recipe_ingredients").delete().eq("id", recipe_ingredient_id).eq("recipe_id", recipe_id).execute()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "recipe_ingredients")
+        
+    return {"ok": True}
+
+
 # -----------------------------------------------------------------------------
 
 def _ingredient_out(row: dict, current_stock: float = 0.0, has_unknown_stock: bool = False) -> IngredientOut:
@@ -649,7 +876,7 @@ def add_purchase(item_id: str, body: PurchaseIn, user_id: str = Depends(_current
             "ingredient_id": item_id,
             "user_id": user_id,
             "shop_name": body.shop_name.strip() if body.shop_name else None,
-            "purchase_date": body.purchase_date.isoformat() if body.purchase_date else None,
+            "purchase_date": body.purchase_date.isoformat() if body.purchase_date else date.today().isoformat(),
             "quantity": body.quantity,
             "remaining_quantity": body.quantity,
             "price": body.price,
@@ -671,7 +898,7 @@ def update_purchase(item_id: str, purchase_id: str, body: PurchaseIn, user_id: s
     try:
         result = sb.table("ingredient_purchases").update({
             "shop_name": body.shop_name.strip() if body.shop_name else None,
-            "purchase_date": body.purchase_date.isoformat() if body.purchase_date else None,
+            "purchase_date": body.purchase_date.isoformat() if body.purchase_date else date.today().isoformat(),
             "quantity": body.quantity,
             "remaining_quantity": body.quantity, # when updating an opening stock, remaining should be set to the initial quantity
             "price": body.price,
