@@ -256,3 +256,59 @@ export function consumeIngredient(ingredientId: string, quantity: number) {
     body: JSON.stringify({ quantity }),
   });
 }
+
+// -----------------------------------------------------------------------------
+// ORDERS MODULE
+// -----------------------------------------------------------------------------
+
+export type Order = {
+  id: string;
+  customer_name: string;
+  customer_phone: string | null;
+  product_type: string;
+  product_name: string;
+  flavour: string | null;
+  quantity: string;
+  price: number;
+  order_date: string;
+  delivery_date: string | null;
+  status: string;
+  payment_status: string;
+  advance_amount: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function listOrders() {
+  return request<Order[]>("/orders");
+}
+
+export function addOrder(body: Omit<Order, "id" | "created_at" | "updated_at">) {
+  return request<Order>("/orders", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateOrder(id: string, body: Omit<Order, "id" | "created_at" | "updated_at">) {
+  return request<Order>(`/orders/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteOrder(id: string) {
+  return request<{ ok: boolean }>(`/orders/${id}`, { method: "DELETE" });
+}
+
+// -----------------------------------------------------------------------------
+// AI MODULE
+// -----------------------------------------------------------------------------
+
+export function askAI(message: string) {
+  return request<{ response: string }>("/ai/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}

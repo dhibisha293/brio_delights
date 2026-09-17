@@ -174,3 +174,39 @@ create table if not exists public.recipe_ingredients (
 
 notify pgrst, 'reload schema';
 
+-- --------------------------------------------------------
+-- ORDERS MODULE
+-- --------------------------------------------------------
+
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  customer_name text not null,
+  customer_phone text,
+  product_type text not null,
+  product_name text not null,
+  flavour text,
+  quantity text not null,
+  price numeric not null check (price >= 0),
+  order_date date not null default current_date,
+  delivery_date date,
+  status text not null default 'Pending',
+  payment_status text not null default 'Not Paid',
+  advance_amount numeric check (advance_amount is null or advance_amount >= 0),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists orders_user_id_idx on public.orders (user_id);
+
+alter table public.orders enable row level security;
+
+drop policy if exists "orders_user_all" on public.orders;
+create policy "orders_user_all"
+  on public.orders
+  for all
+  using (true)
+  with check (true);
+
+notify pgrst, 'reload schema';

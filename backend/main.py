@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 from supabase import Client, ClientOptions, create_client
+from services.ai_service import get_ai_response
 
 logger = logging.getLogger("brio")
 
@@ -49,6 +50,14 @@ def get_supabase() -> Client:
         SUPABASE_SERVICE_ROLE_KEY,
         options=ClientOptions(httpx_client=httpx.Client(verify=SUPABASE_SSL_VERIFY)),
     )
+
+
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=1000)
+
+
+class ChatOut(BaseModel):
+    response: str
 
 
 class SignupBody(BaseModel):
@@ -957,3 +966,164 @@ def consume_ingredient(item_id: str, body: ConsumeIn, user_id: str = Depends(_cu
         raise
     except Exception as exc:
         raise _missing_table_error(exc, "ingredient_purchases")
+
+
+# -----------------------------------------------------------------------------
+# ORDERS MODULE
+# -----------------------------------------------------------------------------
+
+class OrderIn(BaseModel):
+    customer_name: str = Field(min_length=1, max_length=100)
+    customer_phone: Optional[str] = None
+    product_type: str = Field(min_length=1, max_length=50)
+    product_name: str = Field(min_length=1, max_length=100)
+    flavour: Optional[str] = None
+    quantity: str = Field(min_length=1, max_length=50)
+    price: float = Field(ge=0)
+    order_date: date
+    delivery_date: Optional[date] = None
+    status: str = Field(default="Pending")
+    payment_status: str = Field(default="Not Paid")
+    advance_amount: Optional[float] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+
+class OrderOut(OrderIn):
+    id: str
+    created_at: str
+    updated_at: str
+
+def _order_out(row: dict) -> OrderOut:
+    return OrderOut(
+        id=row["id"],
+        customer_name=row["customer_name"],
+        customer_phone=row.get("customer_phone"),
+        product_type=row["product_type"],
+        product_name=row["product_name"],
+        flavour=row.get("flavour"),
+        quantity=row["quantity"],
+        price=float(row["price"]),
+        order_date=row["order_date"],
+        delivery_date=row.get("delivery_date"),
+        status=row["status"],
+        payment_status=row["payment_status"],
+        advance_amount=float(row["advance_amount"]) if row.get("advance_amount") is not None else None,
+        notes=row.get("notes"),
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+@app.get("/orders", response_model=List[OrderOut])
+def list_orders(user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        result = sb.table("orders").select("*").eq("user_id", user_id).order("order_date", desc=True).order("created_at", desc=True).execute()
+        return [_order_out(row) for row in (result.data or [])]
+    except Exception as exc:
+        raise _missing_table_error(exc, "orders")
+
+@app.post("/orders", response_model=OrderOut)
+def add_order(body: OrderIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        if body.advance_amount is not None and body.advance_amount > body.price:
+            raise _auth_error("Advance amount cannot be greater than the total price.")
+        result = sb.table("orders").insert({
+            "user_id": user_id,
+            "customer_name": body.customer_name.strip(),
+            "customer_phone": body.customer_phone.strip() if body.customer_phone else None,
+            "product_type": body.product_type.strip(),
+            "product_name": body.product_name.strip(),
+            "flavour": body.flavour.strip() if body.flavour else None,
+            "quantity": body.quantity.strip(),
+            "price": body.price,
+            "order_date": body.order_date.isoformat(),
+            "delivery_date": body.delivery_date.isoformat() if body.delivery_date else None,
+            "status": body.status,
+            "payment_status": body.payment_status,
+            "advance_amount": body.advance_amount,
+            "notes": body.notes.strip() if body.notes else None
+        }).execute()
+        rows = result.data or []
+        if not rows:
+            raise _auth_error("Could not save that order.")
+        return _order_out(rows[0])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "orders")
+
+@app.get("/orders/{order_id}", response_model=OrderOut)
+def get_order(order_id: str, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        result = sb.table("orders").select("*").eq("id", order_id).eq("user_id", user_id).maybe_single().execute()
+        if not result.data:
+            raise _auth_error("Order not found.", 404)
+        return _order_out(result.data)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "orders")
+
+@app.put("/orders/{order_id}", response_model=OrderOut)
+def update_order(order_id: str, body: OrderIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        if body.advance_amount is not None and body.advance_amount > body.price:
+            raise _auth_error("Advance amount cannot be greater than the total price.")
+        result = sb.table("orders").update({
+            "customer_name": body.customer_name.strip(),
+            "customer_phone": body.customer_phone.strip() if body.customer_phone else None,
+            "product_type": body.product_type.strip(),
+            "product_name": body.product_name.strip(),
+            "flavour": body.flavour.strip() if body.flavour else None,
+            "quantity": body.quantity.strip(),
+            "price": body.price,
+            "order_date": body.order_date.isoformat(),
+            "delivery_date": body.delivery_date.isoformat() if body.delivery_date else None,
+            "status": body.status,
+            "payment_status": body.payment_status,
+            "advance_amount": body.advance_amount,
+            "notes": body.notes.strip() if body.notes else None,
+            "updated_at": "now()"
+        }).eq("id", order_id).eq("user_id", user_id).execute()
+        rows = result.data or []
+        if not rows:
+            raise _auth_error("Order not found or could not update.")
+        return _order_out(rows[0])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _missing_table_error(exc, "orders")
+
+@app.delete("/orders/{order_id}")
+def delete_order(order_id: str, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        sb.table("orders").delete().eq("id", order_id).eq("user_id", user_id).execute()
+    except Exception as exc:
+        raise _missing_table_error(exc, "orders")
+    return {"ok": True}
+
+# -----------------------------------------------------------------------------
+# AI CHAT MODULE
+# -----------------------------------------------------------------------------
+
+@app.post("/ai/chat", response_model=ChatOut)
+async def chat_with_ai(body: ChatIn, user_id: str = Depends(_current_user_id)):
+    sb = get_supabase()
+    try:
+        # Fetch basic context for the user
+        user_result = sb.table("profiles").select("display_name, bakery_name").eq("id", user_id).maybe_single().execute()
+        user_data = user_result.data or {}
+        bakery_name = user_data.get("bakery_name", "your bakery")
+        display_name = user_data.get("display_name", "user")
+
+        context = f"User Name: {display_name}. Bakery Name: {bakery_name}."
+
+        response_text = await get_ai_response(body.message, context)
+        return ChatOut(response=response_text)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _auth_error(f"Failed to get AI response: {exc}")

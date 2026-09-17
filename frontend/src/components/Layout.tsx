@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
+import AIChatWidget from "./AIChatWidget";
 import { useAuth } from "../AuthContext";
 import { 
   Home, 
@@ -137,6 +138,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <AIChatWidget />
     </div>
   );
 }
