@@ -2,18 +2,22 @@ import { Users } from "lucide-react";
 
 export default function Customers() {
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div style={{ maxWidth: "64rem", margin: "0 auto" }} className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-lav-900">Customers</h1>
-        <p className="mt-2 text-lav-700">Manage your bakery's customer list.</p>
+        <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "2rem", color: "var(--ink)", margin: 0 }}>
+          Customers
+        </h1>
+        <p style={{ marginTop: "0.5rem", color: "var(--muted)", fontWeight: 600 }}>
+          Manage your bakery's customer list.
+        </p>
       </div>
 
-      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-lav-300 bg-white/50 p-8 text-center">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-lav-100 text-lav-500">
-          <Users className="h-8 w-8" />
+      <div className="card" style={{ minHeight: "400px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", border: "2px dashed var(--line)" }}>
+        <div style={{ marginBottom: "1rem", display: "flex", width: 64, height: 64, alignItems: "center", justifyContent: "center", borderRadius: "50%", background: "var(--blush)", color: "var(--hero)" }}>
+          <Users size={32} />
         </div>
-        <h2 className="mb-2 text-xl font-semibold text-lav-900">Customer Management</h2>
-        <p className="max-w-md text-lav-700">
+        <h2 style={{ marginBottom: "0.5rem", fontSize: "1.25rem", fontWeight: 700, color: "var(--ink)" }}>Customer Management</h2>
+        <p style={{ maxWidth: "36rem", color: "var(--muted)", fontWeight: 600 }}>
           Customer tracking functionality will be added here in a future update. You'll be able to see contact details, order history, and preferences.
         </p>
       </div>

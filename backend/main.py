@@ -60,29 +60,6 @@ class ChatOut(BaseModel):
     response: str
 
 
-class SignupBody(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=6)
-    display_name: str = Field(min_length=1, max_length=80)
-    bakery_name: str = Field(min_length=1, max_length=80)
-
-
-class LoginBody(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=6)
-
-
-class UserOut(BaseModel):
-    id: str
-    email: str
-    display_name: str
-    bakery_name: str
-
-
-class AuthOut(BaseModel):
-    access_token: str
-    user: UserOut
-
 
 class PantryIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
@@ -174,83 +151,10 @@ def _auth_error(message: str, code: int = status.HTTP_400_BAD_REQUEST) -> HTTPEx
     return HTTPException(status_code=code, detail=message)
 
 
-def _profile_for_user(sb: Client, user_id: str, email: str) -> UserOut:
-    result = sb.table("profiles").select("display_name, bakery_name").eq("id", user_id).maybe_single().execute()
-    data = result.data or {}
-    return UserOut(
-        id=user_id,
-        email=email,
-        display_name=data.get("display_name") or "",
-        bakery_name=data.get("bakery_name") or "",
-    )
 
 
-def _save_profile_and_session(sb: Client, body: SignupBody, user_id: str, email: str) -> AuthOut:
-    try:
-        sb.table("profiles").upsert(
-            {
-                "id": user_id,
-                "display_name": body.display_name.strip(),
-                "bakery_name": body.bakery_name.strip(),
-            },
-            on_conflict="id",
-        ).execute()
-    except Exception as exc:
-        logger.exception("Supabase profiles upsert failed: %s", exc)
-        detail = str(exc)
-        if "PGRST205" in detail or "schema cache" in detail.lower() or "could not find the table" in detail.lower():
-            raise _auth_error(
-                "Account was created, but the profiles table is missing. Run backend/schema.sql in the Supabase SQL editor."
-            ) from exc
-        if "row-level security" in detail.lower() or "42501" in detail:
-            raise _auth_error(
-                "Account was created, but saving the bakery profile was blocked. Run the updated backend/schema.sql in the Supabase SQL editor."
-            ) from exc
-        raise _auth_error(
-            "Account was created, but the bakery profile could not be saved. Run backend/schema.sql in the Supabase SQL editor, then try Login."
-        ) from exc
-
-    session = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
-    if session.session is None or session.user is None:
-        raise _auth_error("Account created, but login failed. Try logging in.")
-
-    return AuthOut(
-        access_token=session.session.access_token,
-        user=_profile_for_user(sb, session.user.id, session.user.email or email),
-    )
-
-
-def _finish_signup_for_existing_email(sb: Client, body: SignupBody) -> AuthOut:
-    try:
-        session = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
-    except Exception as exc:
-        raise _auth_error("That email is already registered. Try logging in.") from exc
-
-    if session.session is None or session.user is None:
-        raise _auth_error("That email is already registered. Try logging in.")
-
-    return _save_profile_and_session(sb, body, session.user.id, session.user.email or body.email)
-
-
-def _bearer_token(authorization: Optional[str] = Header(default=None)) -> str:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise _auth_error("Please log in.", status.HTTP_401_UNAUTHORIZED)
-    token = authorization.split(" ", 1)[1].strip()
-    if not token:
-        raise _auth_error("Please log in.", status.HTTP_401_UNAUTHORIZED)
-    return token
-
-
-def _current_user_id(token: str = Depends(_bearer_token)) -> str:
-    sb = get_supabase()
-    try:
-        user_res = sb.auth.get_user(token)
-    except Exception as exc:
-        raise _auth_error("Your session expired. Please log in again.", status.HTTP_401_UNAUTHORIZED) from exc
-    user = user_res.user
-    if user is None:
-        raise _auth_error("Your session expired. Please log in again.", status.HTTP_401_UNAUTHORIZED)
-    return user.id
+def _current_user_id() -> str:
+    return "a05f8c54-de06-45b1-bb9d-3230254c0d3a"
 
 
 def _missing_table_error(exc: Exception, table: str) -> HTTPException:
@@ -337,75 +241,7 @@ def health():
     return {"ok": True}
 
 
-@app.post("/auth/signup", response_model=AuthOut)
-def signup(body: SignupBody):
-    sb = get_supabase()
-    try:
-        created = sb.auth.admin.create_user(
-            {
-                "email": body.email,
-                "password": body.password,
-                "email_confirm": True,
-                "user_metadata": {
-                    "display_name": body.display_name,
-                    "bakery_name": body.bakery_name,
-                },
-            }
-        )
-    except Exception as exc:
-        logger.exception("Supabase signup failed: %s", exc)
-        text = str(exc).lower()
-        if "already" in text or "registered" in text or "exists" in text:
-            return _finish_signup_for_existing_email(sb, body)
-        raise _auth_error("Could not create the account. Check your details and try again.") from exc
 
-    user = created.user
-    if user is None:
-        raise _auth_error("Could not create the account.")
-
-    return _save_profile_and_session(sb, body, user.id, body.email)
-
-
-@app.post("/auth/login", response_model=AuthOut)
-def login(body: LoginBody):
-    sb = get_supabase()
-    try:
-        session = sb.auth.sign_in_with_password({"email": body.email, "password": body.password})
-    except Exception as exc:
-        raise _auth_error("Wrong email or password.", status.HTTP_401_UNAUTHORIZED) from exc
-
-    if session.session is None or session.user is None:
-        raise _auth_error("Wrong email or password.", status.HTTP_401_UNAUTHORIZED)
-
-    return AuthOut(
-        access_token=session.session.access_token,
-        user=_profile_for_user(sb, session.user.id, session.user.email or body.email),
-    )
-
-
-@app.get("/auth/me", response_model=UserOut)
-def me(token: str = Depends(_bearer_token)):
-    sb = get_supabase()
-    try:
-        user_res = sb.auth.get_user(token)
-    except Exception as exc:
-        raise _auth_error("Your session expired. Please log in again.", status.HTTP_401_UNAUTHORIZED) from exc
-
-    user = user_res.user
-    if user is None:
-        raise _auth_error("Your session expired. Please log in again.", status.HTTP_401_UNAUTHORIZED)
-
-    return _profile_for_user(sb, user.id, user.email or "")
-
-
-@app.post("/auth/logout")
-def logout(token: str = Depends(_bearer_token)):
-    sb = get_supabase()
-    try:
-        sb.auth.admin.sign_out(token)
-    except Exception:
-        pass
-    return {"ok": True}
 
 
 @app.get("/pantry", response_model=List[PantryOut])
@@ -982,8 +818,8 @@ class OrderIn(BaseModel):
     price: float = Field(ge=0)
     order_date: date
     delivery_date: Optional[date] = None
-    status: str = Field(default="Pending")
-    payment_status: str = Field(default="Not Paid")
+    status: str = Field(default="Completed")
+    payment_status: str = Field(default="Paid")
     advance_amount: Optional[float] = Field(default=None, ge=0)
     notes: Optional[str] = None
 

@@ -44,34 +44,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-export function signup(body: {
-  email: string;
-  password: string;
-  display_name: string;
-  bakery_name: string;
-}) {
-  return request<AuthResponse>("/auth/signup", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
 
-export function login(body: { email: string; password: string }) {
-  return request<AuthResponse>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-}
-
-export function me() {
-  return request<User>("/auth/me");
-}
-
-export function logout() {
-  return request<{ ok: boolean }>("/auth/logout", {
-    method: "POST",
-  });
-}
 
 export type PantryItem = {
   id: string;

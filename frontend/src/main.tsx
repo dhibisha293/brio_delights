@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./AuthContext";
 import "./index.css";
+import "./styles/brio-dashboard.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

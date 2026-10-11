@@ -24,7 +24,7 @@ export default function Orders() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  
+
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -41,8 +41,8 @@ export default function Orders() {
     price: "",
     order_date: new Date().toISOString().split("T")[0],
     delivery_date: "",
-    status: "Pending",
-    payment_status: "Not Paid",
+    status: "Completed",
+    payment_status: "Paid",
     advance_amount: "",
     notes: "",
   });
@@ -93,8 +93,8 @@ export default function Orders() {
         price: "",
         order_date: new Date().toISOString().split("T")[0],
         delivery_date: "",
-        status: "Pending",
-        payment_status: "Not Paid",
+        status: "Completed",
+        payment_status: "Paid",
         advance_amount: "",
         notes: "",
       });
@@ -161,19 +161,22 @@ export default function Orders() {
     });
   }, [orders, search, statusFilter]);
 
-  const totalSales = orders.reduce((acc, o) => acc + o.price, 0);
+  const totalSales = orders.reduce((acc, o) => {
+    if (o.status === "Pending" && o.payment_status === "Not Paid") return acc;
+    return acc + o.price;
+  }, 0);
   const pendingOrders = orders.filter((o) => o.status === "Pending").length;
   const completedOrders = orders.filter((o) => o.status === "Completed").length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Pending": return "bg-yellow-100 text-yellow-800";
-      case "Confirmed": return "bg-blue-100 text-blue-800";
-      case "Preparing": return "bg-purple-100 text-purple-800";
-      case "Ready": return "bg-green-100 text-green-800";
-      case "Completed": return "bg-gray-100 text-gray-800";
-      case "Cancelled": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "Pending":   return "bg-amber-100 text-amber-800";
+      case "Confirmed": return "bg-sky-100 text-sky-800";
+      case "Preparing": return "bg-orange-100 text-orange-800";
+      case "Ready":     return "bg-emerald-100 text-emerald-800";
+      case "Completed": return "bg-rose-100 text-rose-700";
+      case "Cancelled": return "bg-gray-100 text-gray-600";
+      default:          return "bg-gray-100 text-gray-600";
     }
   };
 
@@ -194,10 +197,10 @@ export default function Orders() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-lav-100">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <div className="rounded-2xl border border-lav-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-lav-50" style={{ color: "var(--rose)" }}>
               <ShoppingCart className="h-6 w-6" />
             </div>
             <div>
@@ -206,9 +209,9 @@ export default function Orders() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-lav-100">
+        <div className="rounded-2xl border border-lav-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-50 text-yellow-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "var(--blush)", color: "var(--hero)" }}>
               <Clock className="h-6 w-6" />
             </div>
             <div>
@@ -217,9 +220,9 @@ export default function Orders() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-lav-100">
+        <div className="rounded-2xl border border-lav-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-green-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "rgba(61,184,140,0.12)", color: "var(--mint)" }}>
               <CheckCircle className="h-6 w-6" />
             </div>
             <div>
@@ -228,9 +231,9 @@ export default function Orders() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-lav-100">
+        <div className="rounded-2xl border border-lav-100 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-lav-50 text-lav-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "rgba(255,180,130,0.18)", color: "var(--peach)" }}>
               <DollarSign className="h-6 w-6" />
             </div>
             <div>
@@ -244,7 +247,7 @@ export default function Orders() {
       {/* Filters and List */}
       <div className="rounded-2xl bg-white shadow-sm border border-lav-200 overflow-hidden">
         <div className="border-b border-lav-100 bg-lav-50/50 p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-lav-400" />
               <input
@@ -258,7 +261,7 @@ export default function Orders() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-lav-200 bg-white py-2.5 pl-4 pr-10 text-sm focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500"
+              className="w-full rounded-xl border border-lav-200 bg-white py-2.5 pl-4 pr-10 text-sm focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500 sm:w-auto"
             >
               <option value="All">All Statuses</option>
               <option value="Pending">Pending</option>
@@ -282,66 +285,123 @@ export default function Orders() {
             <p className="mt-2 text-lav-500">Add an order to get started or change your search filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-lav-700">
-              <thead className="bg-lav-50 text-xs font-semibold uppercase tracking-wider text-lav-500">
-                <tr>
-                  <th className="px-6 py-4">Customer</th>
-                  <th className="px-6 py-4">Product</th>
-                  <th className="px-6 py-4">Qty</th>
-                  <th className="px-6 py-4">Price</th>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-lav-100">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-lav-50/50 transition-colors cursor-pointer" onClick={() => viewDetails(order)}>
-                    <td className="whitespace-nowrap px-6 py-4 font-medium text-lav-900">
-                      {order.customer_name}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-lav-900">{order.product_name}</div>
-                      {order.flavour && <div className="text-xs text-lav-500">{order.flavour}</div>}
-                      <div className="text-xs text-lav-400">{order.product_type}</div>
-                    </td>
-                    <td className="px-6 py-4">{order.quantity}</td>
-                    <td className="whitespace-nowrap px-6 py-4 font-medium text-lav-900">
-                      ₹{order.price.toFixed(2)}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      {new Date(order.order_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => openForm(order)}
-                          className="rounded-lg p-2 text-lav-500 hover:bg-lav-100 hover:text-lav-700"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setOrderToDelete(order);
-                            setIsDeleteOpen(true);
-                          }}
-                          className="rounded-lg p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="space-y-3 p-3 sm:hidden">
+              {filteredOrders.map((order) => (
+                <article
+                  key={order.id}
+                  className="rounded-2xl border border-lav-100 bg-lav-50/60 p-4 shadow-sm"
+                  onClick={() => viewDetails(order)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-lav-900">{order.customer_name}</p>
+                      <p className="mt-1 truncate text-sm text-lav-700">{order.product_name}</p>
+                      <p className="mt-0.5 text-xs text-lav-500">
+                        {order.product_type}{order.flavour ? ` · ${order.flavour}` : ""}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusColor(order.status)}`}>
+                      {order.status}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-lav-200/70 pt-3 text-xs">
+                    <div>
+                      <p className="text-lav-500">Qty</p>
+                      <p className="mt-1 font-medium text-lav-900">{order.quantity}</p>
+                    </div>
+                    <div>
+                      <p className="text-lav-500">Price</p>
+                      <p className="mt-1 font-medium text-lav-900">₹{order.price.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-lav-500">Ordered</p>
+                      <p className="mt-1 font-medium text-lav-900">{new Date(order.order_date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      aria-label={`Edit order for ${order.customer_name}`}
+                      onClick={() => openForm(order)}
+                      className="rounded-lg p-2 text-lav-500 hover:bg-lav-100 hover:text-lav-700"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      aria-label={`Delete order for ${order.customer_name}`}
+                      onClick={() => {
+                        setOrderToDelete(order);
+                        setIsDeleteOpen(true);
+                      }}
+                      className="rounded-lg p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-left text-sm text-lav-700">
+                <thead className="bg-lav-50 text-xs font-semibold uppercase tracking-wider text-lav-500">
+                  <tr>
+                    <th className="px-6 py-4">Customer</th>
+                    <th className="px-6 py-4">Product</th>
+                    <th className="px-6 py-4">Qty</th>
+                    <th className="px-6 py-4">Price</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-lav-100">
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-lav-50/50 transition-colors cursor-pointer" onClick={() => viewDetails(order)}>
+                      <td className="whitespace-nowrap px-6 py-4 font-medium text-lav-900">
+                        {order.customer_name}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-lav-900">{order.product_name}</div>
+                        {order.flavour && <div className="text-xs text-lav-500">{order.flavour}</div>}
+                        <div className="text-xs text-lav-400">{order.product_type}</div>
+                      </td>
+                      <td className="px-6 py-4">{order.quantity}</td>
+                      <td className="whitespace-nowrap px-6 py-4 font-medium text-lav-900">
+                        ₹{order.price.toFixed(2)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {new Date(order.order_date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => openForm(order)}
+                            className="rounded-lg p-2 text-lav-500 hover:bg-lav-100 hover:text-lav-700"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setOrderToDelete(order);
+                              setIsDeleteOpen(true);
+                            }}
+                            className="rounded-lg p-2 text-red-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -360,10 +420,10 @@ export default function Orders() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <form onSubmit={handleFormSubmit} className="p-6">
               <div className="space-y-6">
-                
+
                 {/* Customer Details */}
                 <div>
                   <h3 className="text-lg font-medium text-lav-900 mb-4">Customer Details</h3>
@@ -415,35 +475,86 @@ export default function Orders() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-lav-700 mb-1">Product Name *</label>
-                      <input
-                        type="text"
+                      <select
                         required
-                        placeholder="e.g. Chocolate Cake"
                         value={formData.product_name}
                         onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500"
-                      />
+                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500 bg-white"
+                      >
+                        <option value="">Select a product...</option>
+                        <option value="Birthday Cake">Birthday Cake</option>
+                        <option value="Anniversary Cake">Anniversary Cake</option>
+                        <option value="Baby Shower Cake">Baby Shower Cake</option>
+                        <option value="Wedding Cake">Wedding Cake</option>
+                        <option value="Custom Cake">Custom Cake</option>
+                        <option value="Brownie Tub">Brownie Tub</option>
+                        <option value="Brownie Piece">Brownie Piece</option>
+                        <option value="Brownie Slab">Brownie Slab</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-lav-700 mb-1">Flavour</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Vanilla, Chocolate"
+                      <select
                         value={formData.flavour}
                         onChange={(e) => setFormData({ ...formData, flavour: e.target.value })}
-                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500"
-                      />
+                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500 bg-white"
+                      >
+                        <option value="">Select a flavour...</option>
+                        <option value="Vanilla">Vanilla</option>
+                        <option value="Black Forest">Black Forest</option>
+                        <option value="White Forest">White Forest</option>
+                        <option value="Chocolate">Chocolate</option>
+                        <option value="Red Velvet">Red Velvet</option>
+                        <option value="Rose Milk">Rose Milk</option>
+                        <option value="Blackcurrant">Blackcurrant</option>
+                        <option value="Strawberry">Strawberry</option>
+                        <option value="Butterscotch">Butterscotch</option>
+                        <option value="Blueberry">Blueberry</option>
+                        <option value="Semi Choco Truffle">Semi Choco Truffle</option>
+                        <option value="Cookies & Cream">Cookies & Cream</option>
+                        <option value="KitKat">KitKat</option>
+                        <option value="Vancho">Vancho</option>
+                        <option value="Honey & Almond">Honey & Almond</option>
+                        <option value="Nuts">Nuts</option>
+                        <option value="Oreo">Oreo</option>
+                        <option value="Spanish Delight">Spanish Delight</option>
+                        <option value="White Chocolate Truffle">White Chocolate Truffle</option>
+                        <option value="Pistachio">Pistachio</option>
+                        <option value="Tender Coconut">Tender Coconut</option>
+                        <option value="Gulab Jamun">Gulab Jamun</option>
+                        <option value="Nutty Bubble">Nutty Bubble</option>
+                        <option value="Choco Truffle">Choco Truffle</option>
+                        <option value="Rasmalai">Rasmalai</option>
+                        <option value="Ferrero Rocher">Ferrero Rocher</option>
+                        <option value="Raffaello">Raffaello</option>
+                        <option value="Classic Brownie">Classic Brownie</option>
+                        <option value="Triple Chocolate Brownie">Triple Chocolate Brownie</option>
+                        <option value="Double Chocolate Brownie">Double Chocolate Brownie</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-lav-700 mb-1">Quantity *</label>
-                      <input
-                        type="text"
+                      <select
                         required
-                        placeholder="e.g. 1 kg, 2 boxes"
                         value={formData.quantity}
                         onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500"
-                      />
+                        className="w-full rounded-xl border border-lav-200 px-4 py-2.5 focus:border-lav-500 focus:outline-none focus:ring-1 focus:ring-lav-500 bg-white"
+                      >
+                        <option value="">Select quantity...</option>
+                        <option value="1/4 KG">1/4 KG</option>
+                        <option value="1/2 KG">1/2 KG</option>
+                        <option value="1 KG">1 KG</option>
+                        <option value="1.5 KG">1.5 KG</option>
+                        <option value="2 KG">2 KG</option>
+                        <option value="2.5 KG">2.5 KG</option>
+                        <option value="3 KG">3 KG</option>
+                        <option value="4 KG">4 KG</option>
+                        <option value="5 KG">5 KG</option>
+                        <option value="1 Box">1 Box</option>
+                        <option value="2 Boxes">2 Boxes</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-lav-700 mb-1">Total Price (₹) *</label>
@@ -575,9 +686,9 @@ export default function Orders() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-6 space-y-6">
-              
+
               {/* Header Info */}
               <div className="flex justify-between items-start">
                 <div>
@@ -658,23 +769,23 @@ export default function Orders() {
               )}
 
             </div>
-            
+
             <div className="border-t border-lav-100 bg-lav-50/50 px-6 py-4 flex justify-end gap-3 rounded-b-3xl">
-               <button
-                  onClick={() => {
-                    setIsDetailsOpen(false);
-                    openForm(selectedOrder);
-                  }}
-                  className="rounded-xl px-5 py-2.5 text-sm font-medium text-lav-600 transition-colors hover:bg-lav-100 border border-lav-200 bg-white"
-                >
-                  Edit Order
-                </button>
-                <button
-                  onClick={() => setIsDetailsOpen(false)}
-                  className="rounded-xl bg-lav-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-lav-700 shadow-md shadow-lav-500/20"
-                >
-                  Close
-                </button>
+              <button
+                onClick={() => {
+                  setIsDetailsOpen(false);
+                  openForm(selectedOrder);
+                }}
+                className="rounded-xl px-5 py-2.5 text-sm font-medium text-lav-600 transition-colors hover:bg-lav-100 border border-lav-200 bg-white"
+              >
+                Edit Order
+              </button>
+              <button
+                onClick={() => setIsDetailsOpen(false)}
+                className="rounded-xl bg-lav-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-lav-700 shadow-md shadow-lav-500/20"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

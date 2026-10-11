@@ -215,7 +215,7 @@ function InventoryCard({ item, onView, onAddPurchase, onUpdateStock, onDelete }:
       <div>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="font-bold text-lav-900 line-clamp-1">{item.name}</h3>
+            <h3 className="text-xl font-bold text-lav-900 line-clamp-1">{item.name}</h3>
             <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-lav-600">
               <CategoryIcon category={item.category} />
               {item.category}
@@ -242,7 +242,7 @@ function InventoryCard({ item, onView, onAddPurchase, onUpdateStock, onDelete }:
         
         <div className="mt-6">
           {isUnknown ? (
-            <div className="text-xl font-bold text-slate-700">Quantity Unknown</div>
+            <div className="text-base font-medium text-slate-500">Quantity Unknown</div>
           ) : (
             <div className="text-2xl font-bold text-lav-900">
               {item.current_stock} <span className="text-base font-medium text-lav-500">{item.unit}</span>

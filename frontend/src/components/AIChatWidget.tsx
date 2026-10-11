@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageSquare, X, Send, Bot } from "lucide-react";
+import { X, Send, Bot } from "lucide-react";
 import { askAI } from "../api";
 
 type Message = {
@@ -51,10 +51,13 @@ export default function AIChatWidget() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-lav-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-lav-700 focus:outline-none focus:ring-4 focus:ring-lav-300 ${isOpen ? "hidden" : "flex"}`}
-        aria-label="Open AI Chat"
+        className={`fab ${isOpen ? "hidden" : ""}`}
+        aria-label="Ask the assistant"
+        type="button"
       >
-        <MessageSquare className="h-6 w-6" />
+        <svg className="icon">
+          <use href="#i-chat" />
+        </svg>
       </button>
 
       {/* Chat Window */}
