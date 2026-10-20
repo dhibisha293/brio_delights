@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+const rawApiUrl = (import.meta.env.VITE_API_URL || "/api").trim();
+const API_URL = rawApiUrl.replace(/\/+$/, "");
 
 export type User = {
   id: string;
@@ -14,11 +15,13 @@ export type AuthResponse = {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 15000);
+  // 45s timeout to comfortably allow free hosting (e.g. Render) spin-up on cold starts
+  const timer = window.setTimeout(() => controller.abort(), 45000);
   const token = localStorage.getItem("brio_token");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${API_URL}${normalizedPath}`, {
       ...options,
       signal: controller.signal,
       headers: {
@@ -29,7 +32,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The server took too long to respond.");
+      throw new Error(
+        "The server took too long to respond. If your backend is hosted on a free Render tier, it may be waking up from sleep (cold start) — please wait a moment and try again."
+      );
     }
     throw new Error("Could not reach the server. Is the API running?");
   } finally {

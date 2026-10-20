@@ -22,17 +22,24 @@ SUPABASE_SSL_VERIFY = os.getenv("SUPABASE_SSL_VERIFY", "true").lower() not in ("
 
 app = FastAPI(title="Brio Delights API")
 
+# Parse comma-separated or single FRONTEND_ORIGIN
+raw_origins = [o.strip().rstrip("/") for o in FRONTEND_ORIGIN.split(",") if o.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:3000",
+]
+allowed_origins = list(dict.fromkeys(raw_origins + default_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        FRONTEND_ORIGIN,
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-    ],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -236,9 +243,19 @@ def _recipe_out(row: dict, costs: Dict[str, float], pantry_map: Dict[str, str]) 
     )
 
 
+@app.get("/")
+def root():
+    return {
+        "status": "online",
+        "service": "Brio Delights API",
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "status": "healthy"}
 
 
 
@@ -963,3 +980,10 @@ async def chat_with_ai(body: ChatIn, user_id: str = Depends(_current_user_id)):
         raise
     except Exception as exc:
         raise _auth_error(f"Failed to get AI response: {exc}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+

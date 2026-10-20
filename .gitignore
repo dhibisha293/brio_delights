@@ -3,10 +3,12 @@ __pycache__/
 .venv/
 venv/
 .env
+*.pyc
 
-# Node
+# Node & Build
 node_modules/
 dist/
+.vercel
 .DS_Store
 
 # Logs
