@@ -243,7 +243,7 @@ def _recipe_out(row: dict, costs: Dict[str, float], pantry_map: Dict[str, str]) 
     )
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     return {
         "status": "online",
@@ -253,7 +253,7 @@ def root():
     }
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"ok": True, "status": "healthy"}
 
